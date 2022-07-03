@@ -153,6 +153,8 @@ namespace NeonWhiteDebugMenu
             GameDataManager.powerPrefs.dontUploadToLeaderboard = true;
             HarmonyLib.Harmony instance = this.HarmonyInstance;
             instance.PatchAll(typeof(DisablePBUpdating_Patch));
+			instance.PatchAll(typeof(EnemyAI_Patch));
+			instance.PatchAll(typeof(SetNoclipOnStart));
 
 			// set up prefs here
 			debug_menu = MelonPreferences.CreateCategory("Debug Menu");
