@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32616.157
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeonWhiteDebugMenu", "NeonWhiteDebugMenu.csproj", "{A63F6AA4-90D4-4744-97D8-17C2F39BD1FF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A63F6AA4-90D4-4744-97D8-17C2F39BD1FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A63F6AA4-90D4-4744-97D8-17C2F39BD1FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A63F6AA4-90D4-4744-97D8-17C2F39BD1FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A63F6AA4-90D4-4744-97D8-17C2F39BD1FF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0DBE64BC-FD92-4E13-8D0C-F34E2F7A1160}
+	EndGlobalSection
+EndGlobal
