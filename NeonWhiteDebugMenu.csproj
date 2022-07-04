@@ -60,6 +60,10 @@
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>H:\SteamLibrary\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>H:\SteamLibrary\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.InputModule">
       <HintPath>H:\SteamLibrary\steamapps\common\Neon White\Neon White_Data\Managed\UnityEngine.InputModule.dll</HintPath>
     </Reference>
