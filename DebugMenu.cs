@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 /* All demo console commands:
 		* = GS.method not available in full build, will need extra work
@@ -69,7 +69,201 @@ using UnityEngine.InputSystem;
 
 namespace NeonWhiteDebugMenu
 {
-    class DisablePBUpdating_Patch {
+	[DisallowMultipleComponent]
+	public class ColliderVisualizer : MonoBehaviour {
+		// huge shoutout to dmgvol
+		// I pretty much ripped this right out of https://github.com/Dmgvol/NeonWhite-Trainer/ to do some debugging of my own
+
+		// TODOs:
+		// * hook projectile create to add a collider visualizer to it if collision visualiztion is on
+		// * hook up LateUpdate? unsure if that's called at all
+		// * figure out tripwire collision boxes & rendering of those
+		private static GameObject ColliderVisualizerCanvas {
+			get {
+				if (ColliderVisualizer._colliderVisualizerCanvas == null) {
+					ColliderVisualizer._colliderVisualizerCanvas = new GameObject("ColliderVisualizerCanvas");
+					ColliderVisualizer._colliderVisualizerCanvas.AddComponent<Canvas>().renderMode = 0;
+					CanvasScaler canvasScaler = ColliderVisualizer._colliderVisualizerCanvas.AddComponent<CanvasScaler>();
+					canvasScaler.uiScaleMode = (CanvasScaler.ScaleMode)1;
+					canvasScaler.referenceResolution = ColliderVisualizer.ReferenceResolution;
+					canvasScaler.matchWidthOrHeight = 1f;
+					ColliderVisualizer._colliderVisualizerCanvas.AddComponent<GraphicRaycaster>();
+				}
+				return ColliderVisualizer._colliderVisualizerCanvas;
+			}
+		}
+
+		private static Font Font {
+			get {
+				Font font;
+				if ((font = ColliderVisualizer._font) == null) {
+					font = (ColliderVisualizer._font = Resources.GetBuiltinResource<Font>("Arial.ttf"));
+				}
+				return font;
+			}
+		}
+
+		// TODO: figure out hooking this up properly? idt this is called at all rn
+		private void LateUpdate() {
+			if (this._visualizer == null || this._label == null) {
+				return;
+			}
+			this._label.rectTransform.position = RectTransformUtility.WorldToScreenPoint(Camera.main, this._visualizer.transform.position);
+		}
+
+		private void OnDestroy() {
+			if (this._label == null) {
+				return;
+			}
+            UnityEngine.Object.Destroy(this._label.gameObject);
+			UnityEngine.Object.Destroy(this._visualizer);
+		}
+
+		public void Initialize(ColliderVisualizer.VisualizerColorType visualizerColor, string message, int fontSize) {
+			this.Initialize(ColliderVisualizer.VisualizerColorDictionary[visualizerColor], message, fontSize);
+		}
+
+		public void Initialize(Color color, string message, int fontSize) {
+			Collider component = base.GetComponent<Collider>();
+			if (component is BoxCollider) {
+				this._visualizer = this.CreateVisualizer((PrimitiveType)3);
+				this.SetVisualizerTransform((BoxCollider)component);
+			} else if (component is SphereCollider) {
+				this._visualizer = this.CreateVisualizer(0);
+				this.SetVisualizerTransform((SphereCollider)component);
+			} else {
+				if (!(component is CapsuleCollider)) {
+					return;
+				}
+				this._visualizer = this.CreateVisualizer((PrimitiveType)1);
+				this.SetVisualizerTransform((CapsuleCollider)component);
+			}
+			Material material = this._visualizer.GetComponent<Renderer>().material;
+			material.shader = Shader.Find("Sprites/Default");
+			material.color = color;
+			this.CreateLabel(message, fontSize);
+		}
+
+		private GameObject CreateVisualizer(PrimitiveType primitiveType) {
+			GameObject gameObject = GameObject.CreatePrimitive(primitiveType);
+			gameObject.transform.SetParent(base.transform, false);
+			Collider component = gameObject.GetComponent<Collider>();
+			component.enabled = false;
+			UnityEngine.Object.Destroy(component);
+			return gameObject;
+		}
+
+		private void SetVisualizerTransform(BoxCollider boxCollider) {
+			Transform transform = this._visualizer.transform;
+			transform.localPosition += boxCollider.center;
+			transform.localScale = Vector3.Scale(transform.localScale, boxCollider.size);
+		}
+
+		private void SetVisualizerTransform(SphereCollider sphereCollider) {
+			Transform transform = this._visualizer.transform;
+			transform.localPosition += sphereCollider.center;
+			transform.localScale *= sphereCollider.radius * 2f;
+		}
+
+		private void SetVisualizerTransform(CapsuleCollider capsuleCollider) {
+			Transform transform = this._visualizer.transform;
+			transform.localPosition += capsuleCollider.center;
+			switch (capsuleCollider.direction) {
+				case 0:
+					transform.Rotate(Vector3.forward * 90f);
+					break;
+				case 1:
+					break;
+				case 2:
+					transform.Rotate(Vector3.right * 90f);
+					break;
+				default:
+					throw new ArgumentOutOfRangeException();
+			}
+			Vector3 localScale = transform.localScale;
+			float radius = capsuleCollider.radius;
+			float num = localScale.x * radius * 2f;
+			float num2 = localScale.y * capsuleCollider.height * 0.5f;
+			float num3 = localScale.z * radius * 2f;
+			transform.localScale = new Vector3(num, num2, num3);
+		}
+
+		private void CreateLabel(string message, int fontSize) {
+			GameObject gameObject = new GameObject("Label");
+			gameObject.transform.SetParent(ColliderVisualizer.ColliderVisualizerCanvas.transform, false);
+			this._label = gameObject.AddComponent<Text>();
+			this._label.font = ColliderVisualizer.Font;
+			this._label.fontSize = fontSize;
+			this._label.alignment = (TextAnchor)4;
+			this._label.raycastTarget = false;
+			this._label.text = message;
+			ContentSizeFitter contentSizeFitter = gameObject.AddComponent<ContentSizeFitter>();
+			contentSizeFitter.horizontalFit = (ContentSizeFitter.FitMode)2;
+			contentSizeFitter.verticalFit = (ContentSizeFitter.FitMode)2;
+		}
+
+		public void InitializeSpecificCollider(Color color, string message, int fontSize, Collider collider) {
+			if (collider is BoxCollider) {
+				this._visualizer = this.CreateVisualizer((PrimitiveType)3);
+				this.SetVisualizerTransform((BoxCollider)collider);
+			} else if (collider is SphereCollider) {
+				this._visualizer = this.CreateVisualizer(0);
+				this.SetVisualizerTransform((SphereCollider)collider);
+			} else {
+				if (!(collider is CapsuleCollider)) {
+					return;
+				}
+				this._visualizer = this.CreateVisualizer((PrimitiveType)1);
+				this.SetVisualizerTransform((CapsuleCollider)collider);
+			}
+			Material material = this._visualizer.GetComponent<Renderer>().material;
+			material.shader = Shader.Find("Sprites/Default");
+			material.color = color;
+			this.CreateLabel(message, fontSize);
+		}
+
+		private static readonly Vector2 ReferenceResolution = new Vector2(800f, 600f);
+
+		private static readonly Dictionary<ColliderVisualizer.VisualizerColorType, Color> VisualizerColorDictionary = new Dictionary<ColliderVisualizer.VisualizerColorType, Color>(new ColliderVisualizer.VisualizerColorTypeComparer())
+		{
+		{
+			ColliderVisualizer.VisualizerColorType.Red,
+			new Color32(byte.MaxValue, 0, 0, 50)
+		},
+		{
+			ColliderVisualizer.VisualizerColorType.Green,
+			new Color32(0, byte.MaxValue, 0, 50)
+		},
+		{
+			ColliderVisualizer.VisualizerColorType.Blue,
+			new Color32(0, 0, byte.MaxValue, 50)
+		}
+	};
+
+		private Text _label;
+
+		private static GameObject _colliderVisualizerCanvas;
+
+		private static Font _font;
+
+		private GameObject _visualizer;
+
+		public enum VisualizerColorType {
+			Red,
+			Green,
+			Blue
+		}
+
+		public class VisualizerColorTypeComparer : IEqualityComparer<ColliderVisualizer.VisualizerColorType> {
+			public bool Equals(ColliderVisualizer.VisualizerColorType x, ColliderVisualizer.VisualizerColorType y) {
+				return x == y;
+			}
+			public int GetHashCode(ColliderVisualizer.VisualizerColorType obj) {
+				return (int)obj;
+			}
+		}
+	}
+	class DisablePBUpdating_Patch {
         [HarmonyPatch(typeof(LevelStats), "UpdateTimeMicroseconds")]
         [HarmonyPrefix]
         static bool SkipUpdatingPb(LevelStats __instance, long newTime) {
@@ -150,6 +344,43 @@ namespace NeonWhiteDebugMenu
 			}
 		}
 
+		class CollisionVisualizer {
+			public static bool enabled = false;
+			public static void ToggleState() {
+				// thank you dmgvol
+				if (enabled) {
+					// turn that shit off
+					ColliderVisualizer[] array2 = Object.FindObjectsOfType<ColliderVisualizer>();
+					for (int j = 0; j < array2.Length; j++) {
+						Object.Destroy(array2[j]);
+					}
+				} else {
+					// turn that shit on
+					foreach (Collider collider in from c in Object.FindObjectsOfType<Collider>()
+												  where !c.isTrigger && c.gameObject.name != "Player" && !c.GetComponent<BaseDamageable>()
+												  select c) {
+						try {
+							collider.gameObject.AddComponent<ColliderVisualizer>().Initialize((collider.GetType() == typeof(MeshCollider) && !((MeshCollider)collider).convex) ? ColliderVisualizer.VisualizerColorType.Red : ColliderVisualizer.VisualizerColorType.Green, "", 12);
+						} catch {
+						}
+					}
+					BaseDamageable[] array = Object.FindObjectsOfType<BaseDamageable>();
+					for (int i = 0; i < array.Length; i++) {
+						array[i].gameObject.AddComponent<ColliderVisualizer>().Initialize(ColliderVisualizer.VisualizerColorType.Red, "", 12);
+					}
+				}
+				enabled = !enabled;
+            }
+			public static void AddInputBinding() {
+				InputAction visualizerAction = new InputAction();
+				visualizerAction.AddBinding("<Keyboard>/end");
+				visualizerAction.Enable();
+				visualizerAction.performed += delegate (InputAction.CallbackContext obj) {
+					CollisionVisualizer.ToggleState();
+				};
+			}
+        }
+
 		public override void OnApplicationLateStart() {
             GameDataManager.powerPrefs.dontUploadToLeaderboard = true;
             HarmonyLib.Harmony instance = this.HarmonyInstance;
@@ -173,6 +404,7 @@ namespace NeonWhiteDebugMenu
 			disable_mimic = enemy_ai_debug.CreateEntry("Disable Mimic", false);
 
 			AddCardBindings();
+			CollisionVisualizer.AddInputBinding();
 		}
 
         public override void OnPreferencesSaved() {
