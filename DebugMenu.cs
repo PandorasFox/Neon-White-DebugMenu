@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 using HarmonyLib;
 using MelonLoader;
@@ -272,8 +273,74 @@ namespace NeonWhiteDebugMenu
         }
     }
 
+	public class DebugLoggingPatches {
+		public static int FramesToLogVelocityInfo = 0;
+		public static string GetVelocitiesInfo(string prefix) {
+			Vector3 Velocity = RM.drifter.Velocity;
+			Vector3 MovementVelocity = RM.drifter.MovementVelocity;
+			// reflection time!
+			FieldInfo MoveDirField = typeof(FirstPersonDrifter).GetField("moveDirection", BindingFlags.Instance | BindingFlags.NonPublic);
+			Vector3 MoveDirection = (Vector3)MoveDirField.GetValue(RM.drifter);
+
+			// will need to comment this out if i test fireball. yolo
+			Velocity.y = 0;
+			MovementVelocity.y = 0;
+			MoveDirection.y = 0;
+
+			Vector3 summed_velocity = Velocity + MovementVelocity;
+			
+			string ret = prefix + "Velocity: " + Velocity.magnitude.ToString() + "  |  " + Velocity.x.ToString("N2") + ", " + Velocity.z.ToString("N2");
+			ret += prefix  + "Movement Velocity: " + MovementVelocity.magnitude.ToString() + "  |  " + MovementVelocity.x.ToString("N2") + ", " + MovementVelocity.z.ToString("N2");
+			ret += prefix  + "Summed Velocity: " + summed_velocity.magnitude.ToString() + "  |  " + summed_velocity.x.ToString("N2") + ", " + summed_velocity.z.ToString("N2");
+
+			ret += prefix + "MoveDir: " + MoveDirection.magnitude.ToString() + "  |  " + MoveDirection.x.ToString("N2") + ", " + MoveDirection.z.ToString("N2");
+
+			return ret;
+		}
+
+		[HarmonyPatch(typeof(FirstPersonDrifter), "OnParry")]
+        [HarmonyPrefix]
+		public static void OnParryCall() {
+			MelonLogger.Msg(GetVelocitiesInfo("\n>"));
+        }
+		[HarmonyPatch(typeof(FirstPersonDrifter), "OnParry")]
+		[HarmonyPostfix]
+		public static void OnParryReturn() {
+			MelonLogger.Msg(GetVelocitiesInfo("\n\t<"));
+			FramesToLogVelocityInfo = 5;
+		}
+	}
+
     public class DebugMenu : MelonMod
     {
+		public static GUIStyle TextStyle(int size) {
+			GUIStyle style = new GUIStyle();
+
+			style.fixedHeight = size;
+			style.fontSize = size;
+
+			return style;
+		}
+		public static void DrawText(int x_offset, int y_offset, string s, int size, Color c) {
+			GUIStyle style = TextStyle(size);
+			style.normal.textColor = c;
+
+			GUIStyle outline_style = TextStyle(size);
+			outline_style.normal.textColor = Color.black;
+			int outline_strength = 2;
+
+			Rect r = new Rect(x_offset, y_offset, 120, 30);
+
+			for (int i = -outline_strength; i <= outline_strength; ++i) {
+				GUI.Label(new Rect(r.x - outline_strength, r.y + i, r.width, r.height), s, outline_style);
+				GUI.Label(new Rect(r.x + outline_strength, r.y + i, r.width, r.height), s, outline_style);
+			}
+			for (int i = -outline_strength + 1; i <= outline_strength - 1; ++i) {
+				GUI.Label(new Rect(r.x + i, r.y - outline_strength, r.width, r.height), s, outline_style);
+				GUI.Label(new Rect(r.x + i, r.y + outline_strength, r.width, r.height), s, outline_style);
+			}
+			GUI.Label(r, s, style);
+		}
 		public static MelonPreferences_Category debug_menu;
 		public static MelonPreferences_Category enemy_ai_debug;
 		// granular NoTarget prefs
@@ -289,7 +356,8 @@ namespace NeonWhiteDebugMenu
 		// noclip; what it says on the box. requires postfix patching FirstPersonDrifter.Start() to update setting.
 		public static MelonPreferences_Entry<bool> noclip;
 		public static MelonPreferences_Entry<bool> hud;
-		// GS only exists 'toggles' for these, tracking state would be weird
+		public static MelonPreferences_Entry<float> timescale;
+		// GS only exposes 'toggles' for these, tracking state would be weird
 		// they also can collide with each other, so ignoring for now.
 		// Properly implementing these would require writing my own dev console :')
 		public static MelonPreferences_Entry<bool> record_mode;
@@ -387,11 +455,13 @@ namespace NeonWhiteDebugMenu
             instance.PatchAll(typeof(DisablePBUpdating_Patch));
 			instance.PatchAll(typeof(EnemyAI_Patch));
 			instance.PatchAll(typeof(SetNoclipOnStart));
+			//instance.PatchAll(typeof(DebugLoggingPatches));
 
 			// set up prefs here
 			debug_menu = MelonPreferences.CreateCategory("Debug Menu");
 			noclip = debug_menu.CreateEntry("Noclip", false);
 			hud = debug_menu.CreateEntry("HUD", true);
+			timescale = debug_menu.CreateEntry("Timescale", 1f);
 
 			enemy_ai_debug = MelonPreferences.CreateCategory("Debug: Enemy AI");
 			disable_barnacle = enemy_ai_debug.CreateEntry("Disable Barnacle (basic imp)", false);
@@ -402,6 +472,7 @@ namespace NeonWhiteDebugMenu
 			disable_ringer = enemy_ai_debug.CreateEntry("Disable Ringer (blob)", false);
 			disable_shocker = enemy_ai_debug.CreateEntry("Disable Shocker", false);
 			disable_mimic = enemy_ai_debug.CreateEntry("Disable Mimic", false);
+
 
 			AddCardBindings();
 			CollisionVisualizer.AddInputBinding();
@@ -415,7 +486,29 @@ namespace NeonWhiteDebugMenu
 			GS.SetHud(hud.Value);
 		}
 
-		public void AddCardBindings() {
+		public override void OnUpdate() {
+			// note: when timescale fuckery is going on, stuff starts happening when waiting for level start.
+			// it resets on level start, but probably need to gate this better (e.g. not adjust timescale if timescale == 0)
+			if (RM.time != null && RM.time.GetTargetTimeScale() != 0f) {
+				RM.time.SetTargetTimescale(timescale.Value);
+			}
+		}
+
+        /*
+		public override void OnLateUpdate() {
+            if (DebugLoggingPatches.FramesToLogVelocityInfo-- > 0) {
+				Vector3 velocity = RM.drifter.Motor.BaseVelocity;
+				velocity.y = 0;
+                this.LoggerInstance.Msg($"[{DebugLoggingPatches.FramesToLogVelocityInfo}]" + velocity.magnitude.ToString());
+			}
+        }
+		*/
+
+        public override void OnGUI() {
+			DrawText(0, 0, "Debug kit loaded; PBs disabled!", 12, Color.magenta);
+        }
+
+        public void AddCardBindings() {
 			InputAction elevateAction = new InputAction();
 			elevateAction.AddBinding("<Keyboard>/1", null, null, null);
 			elevateAction.Enable();
