@@ -35,6 +35,6 @@ using NeonWhiteDebugMenu;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: MelonInfo(typeof(DebugMenu), "Neon Debug Menu", "1.2.0", "Pandora's Fox")]
+[assembly: MelonInfo(typeof(DebugMenu), "Neon Debug Menu", "1.3.0", "Pandora's Fox")]
 [assembly: MelonGame("Little Flag Software, LLC", "Neon White")]
 [assembly: HarmonyDontPatchAll]

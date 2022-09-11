@@ -278,6 +278,7 @@ namespace NeonWhiteDebugMenu
 		public static string GetVelocitiesInfo(string prefix) {
 			Vector3 Velocity = RM.drifter.Velocity;
 			Vector3 MovementVelocity = RM.drifter.MovementVelocity;
+			Vector3 BaseVelocity = RM.drifter.Motor.BaseVelocity; // the real source of truth on momentum
 			// reflection time!
 			FieldInfo MoveDirField = typeof(FirstPersonDrifter).GetField("moveDirection", BindingFlags.Instance | BindingFlags.NonPublic);
 			Vector3 MoveDirection = (Vector3)MoveDirField.GetValue(RM.drifter);
@@ -286,29 +287,118 @@ namespace NeonWhiteDebugMenu
 			Velocity.y = 0;
 			MovementVelocity.y = 0;
 			MoveDirection.y = 0;
+			BaseVelocity.y = 0;
 
-			Vector3 summed_velocity = Velocity + MovementVelocity;
-			
-			string ret = prefix + "Velocity: " + Velocity.magnitude.ToString() + "  |  " + Velocity.x.ToString("N2") + ", " + Velocity.z.ToString("N2");
-			ret += prefix  + "Movement Velocity: " + MovementVelocity.magnitude.ToString() + "  |  " + MovementVelocity.x.ToString("N2") + ", " + MovementVelocity.z.ToString("N2");
-			ret += prefix  + "Summed Velocity: " + summed_velocity.magnitude.ToString() + "  |  " + summed_velocity.x.ToString("N2") + ", " + summed_velocity.z.ToString("N2");
-
+			string ret = prefix + "Total Velocity: " + BaseVelocity.magnitude.ToString() + "  |  " + BaseVelocity.x.ToString("N2") + ", " + BaseVelocity.z.ToString("N2");
+			ret += prefix + " Bonus Velocity: " + Velocity.magnitude.ToString() + "  |  " + Velocity.x.ToString("N2") + ", " + Velocity.z.ToString("N2");
+			ret += prefix  + " Movement Velocity: " + MovementVelocity.magnitude.ToString() + "  |  " + MovementVelocity.x.ToString("N2") + ", " + MovementVelocity.z.ToString("N2");
 			ret += prefix + "MoveDir: " + MoveDirection.magnitude.ToString() + "  |  " + MoveDirection.x.ToString("N2") + ", " + MoveDirection.z.ToString("N2");
 
 			return ret;
 		}
 
+		/*
 		[HarmonyPatch(typeof(FirstPersonDrifter), "OnParry")]
         [HarmonyPrefix]
 		public static void OnParryCall() {
-			MelonLogger.Msg(GetVelocitiesInfo("\n>"));
+			MelonLogger.Msg("parry boost multiplier: " + RM.drifter.parryBoostSpeed.ToString() + GetVelocitiesInfo("\n>"));
         }
 		[HarmonyPatch(typeof(FirstPersonDrifter), "OnParry")]
 		[HarmonyPostfix]
 		public static void OnParryReturn() {
-			MelonLogger.Msg(GetVelocitiesInfo("\n\t<"));
+			Vector3 PostVelocity = RM.drifter.Velocity;
+			PostVelocity.y = 0;
+			MelonLogger.Msg("\n<Bonus Velocity (next frame): " + PostVelocity.magnitude.ToString());
 			FramesToLogVelocityInfo = 5;
 		}
+		*/
+
+        [HarmonyPatch(typeof(FirstPersonDrifter), "UpdateVelocity")]
+        [HarmonyPostfix]
+		public static void LogVelocityTicks(float deltaTime) {
+			if (DebugLoggingPatches.FramesToLogVelocityInfo-- > 0) {
+				Vector3 velocity = RM.drifter.Motor.BaseVelocity;
+				velocity.y = 0;
+				string dashing = "[";
+				if (RM.drifter.GetIsDashing()) {
+					dashing = "[dashing, ";
+                }
+				MelonLogger.Msg(dashing + "tick took " + deltaTime.ToString() + "]" +
+					DebugLoggingPatches.GetVelocitiesInfo($"\n[{DebugLoggingPatches.FramesToLogVelocityInfo}] "));
+			}
+		}
+
+        [HarmonyPatch(typeof(FirstPersonDrifter), "ForceDash")]
+        [HarmonyPrefix]
+		public static void LogDashSpeeds(float newDashSpeed, float newDashTime, Vector3 newDashEndVelocity, bool isGodspeed) {
+			if (isGodspeed) {
+				MelonLogger.Msg($"godspeed forceDash of speed {newDashSpeed} for duration {newDashTime}; end velocity of {newDashEndVelocity}");
+            } else {
+				MelonLogger.Msg($"forceDash of speed {newDashSpeed} for duration {newDashTime}; end velocity of {newDashEndVelocity}");
+			}
+        }
+
+		/*
+        [HarmonyPatch(typeof(FirstPersonDrifter), "ForceJump")]
+        [HarmonyPrefix]
+		public static void ForceJumpLogging(float upwardVelocity) {
+			MelonLogger.Msg("Adding upwards force of " + upwardVelocity.ToString());
+			FramesToLogVelocityInfo = 3;
+		}
+
+		[HarmonyPatch(typeof(FirstPersonDrifter), "AddVelocity")]
+		[HarmonyPrefix]
+		public static void AddVelocityLogging(Vector3 vel) {
+			float y = vel.y;
+			vel.y = 0;
+			float speed = vel.magnitude;
+			MelonLogger.Msg("Adding velocity of speed " + speed.ToString() + " and upward component " + y.ToString());
+			FramesToLogVelocityInfo = 3;
+		}
+
+		[HarmonyPatch(typeof(FirstPersonDrifter), "AddExternalVelocity")]
+		[HarmonyPrefix]
+		public static void AddExternalVelocityLogging(Vector3 vel) {
+			float y = vel.y;
+			vel.y = 0;
+			float speed = vel.magnitude;
+			MelonLogger.Msg("Adding extVelocity of speed " + speed.ToString() + " and upward component " + y.ToString());
+			FramesToLogVelocityInfo = 3;
+		}
+		
+
+		[HarmonyPatch(typeof(ShockWeapon), "OnTelefrag")]
+		[HarmonyPrefix]
+		public static void ShockWeaponOnTelefrag(Vector3 direction) {
+			float y = direction.y;
+			direction.y = 0;
+			float speed = direction.magnitude;
+			MelonLogger.Msg("ShockWepTelefrag called; " + (RM.drifter.GetIsDashing() ? "dashing" : "not dashing"));
+		}
+
+		[HarmonyPatch(typeof(ShockWeapon), "DoShock")]
+		[HarmonyPrefix]
+		public static void OnShock(Vector3 forcedDirection, bool useForcedDirection, bool ignorePosition) {
+			float y = forcedDirection.y;
+			forcedDirection.y = 0;
+			float speed = forcedDirection.magnitude;
+			if (forcedDirection == Vector3.zero) {
+				MelonLogger.Msg("DoShock w/ no forced direction");
+            } else {
+				MelonLogger.Msg("DoShock called with direction of " + speed.ToString() + " and upward component " + y.ToString());
+			}
+		}
+
+		[HarmonyPatch(typeof(BaseDamageable), "Die")]
+		[HarmonyPrefix]
+		public static void BaseShockerDeath(BaseDamageable __instance) {
+			EnemyShocker shocker = __instance.GetComponent<EnemyShocker>();
+			if (shocker != null) {
+				float d = shocker._shockWeapon.dieDelay;
+				MelonLogger.Msg("BaseShocker died after delay of " + d.ToString() + "!");
+			}
+		}
+		*/
 	}
 
     public class DebugMenu : MelonMod
@@ -343,6 +433,7 @@ namespace NeonWhiteDebugMenu
 		}
 		public static MelonPreferences_Category debug_menu;
 		public static MelonPreferences_Category enemy_ai_debug;
+		public static MelonPreferences_Category debug_load_level;
 		// granular NoTarget prefs
 		public static MelonPreferences_Entry<bool> disable_frog;
 		public static MelonPreferences_Entry<bool> disable_jock;
@@ -357,6 +448,11 @@ namespace NeonWhiteDebugMenu
 		public static MelonPreferences_Entry<bool> noclip;
 		public static MelonPreferences_Entry<bool> hud;
 		public static MelonPreferences_Entry<float> timescale;
+
+		// temp "i wanna load a level" thing
+		public static MelonPreferences_Entry<bool> load_on_next_save;
+		public static MelonPreferences_Entry<string> level_name;
+
 		// GS only exposes 'toggles' for these, tracking state would be weird
 		// they also can collide with each other, so ignoring for now.
 		// Properly implementing these would require writing my own dev console :')
@@ -455,7 +551,7 @@ namespace NeonWhiteDebugMenu
             instance.PatchAll(typeof(DisablePBUpdating_Patch));
 			instance.PatchAll(typeof(EnemyAI_Patch));
 			instance.PatchAll(typeof(SetNoclipOnStart));
-			//instance.PatchAll(typeof(DebugLoggingPatches));
+			instance.PatchAll(typeof(DebugLoggingPatches));
 
 			// set up prefs here
 			debug_menu = MelonPreferences.CreateCategory("Debug Menu");
@@ -473,6 +569,10 @@ namespace NeonWhiteDebugMenu
 			disable_shocker = enemy_ai_debug.CreateEntry("Disable Shocker", false);
 			disable_mimic = enemy_ai_debug.CreateEntry("Disable Mimic", false);
 
+			debug_load_level = MelonPreferences.CreateCategory("Load Level");
+			load_on_next_save = debug_load_level.CreateEntry("Load this level when saving preferences?", false);
+			level_name = debug_load_level.CreateEntry("Level name to load", "");
+
 
 			AddCardBindings();
 			CollisionVisualizer.AddInputBinding();
@@ -484,6 +584,10 @@ namespace NeonWhiteDebugMenu
 				RM.drifter.SetNoclip(noclip.Value);
             }
 			GS.SetHud(hud.Value);
+			if (load_on_next_save.Value) {
+				GS.Level(level_name.Value);
+				load_on_next_save.Value = false;
+            }
 		}
 
 		public override void OnUpdate() {
@@ -493,16 +597,6 @@ namespace NeonWhiteDebugMenu
 				RM.time.SetTargetTimescale(timescale.Value);
 			}
 		}
-
-        /*
-		public override void OnLateUpdate() {
-            if (DebugLoggingPatches.FramesToLogVelocityInfo-- > 0) {
-				Vector3 velocity = RM.drifter.Motor.BaseVelocity;
-				velocity.y = 0;
-                this.LoggerInstance.Msg($"[{DebugLoggingPatches.FramesToLogVelocityInfo}]" + velocity.magnitude.ToString());
-			}
-        }
-		*/
 
         public override void OnGUI() {
 			DrawText(0, 0, "Debug kit loaded; PBs disabled!", 12, Color.magenta);
