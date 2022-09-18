@@ -400,7 +400,39 @@ namespace NeonWhiteDebugMenu {
 		*/
     }
 
+    public class DemonCounterTextMod : MelonMod {
+        public static MelonPreferences_Category demon_counter;
+        public static MelonPreferences_Entry<int> demon_number;
+        public static MelonPreferences_Entry<string> demon_text;
+        public static MelonPreferences_Entry<bool> enabled;
+
+        public override void OnApplicationLateStart() {
+            demon_counter = MelonPreferences.CreateCategory("Demon Counter Text");
+            enabled = demon_counter.CreateEntry("Enabled?", false);
+            demon_text = demon_counter.CreateEntry("Demon text", "Demons");
+            demon_number = demon_counter.CreateEntry("Demon number", -1);
+        }
+        
+        public override void OnGUI() {
+            if (enabled.Value) {
+                if (RM.ui && RM.ui.demonCounterTitleText) {
+                    RM.ui.demonCounterTitleText.text = demon_text.Value;
+                }
+                // reflection time! for once it is the only option
+                Type current_wave = typeof(EnemyWave);
+                FieldInfo enemies_remaining = current_wave.GetField("enemiesRemaining", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                EnemyWave wave = Object.FindObjectOfType<EnemyWave>();
+                if (wave != null) {
+                    enemies_remaining.SetValue(wave, demon_number.Value);
+                }
+            }
+        }
+    }
+
     public class DebugMenu : MelonMod {
+        private DemonCounterTextMod counter_text = null;
+
         public static GUIStyle TextStyle(int size) {
             GUIStyle style = new GUIStyle();
 
@@ -446,6 +478,7 @@ namespace NeonWhiteDebugMenu {
         public static MelonPreferences_Entry<bool> noclip;
         public static MelonPreferences_Entry<bool> hud;
         public static MelonPreferences_Entry<float> timescale;
+        public static MelonPreferences_Entry<bool> cards_by_input;
 
         // temp "i wanna load a level" thing
         public static MelonPreferences_Entry<bool> load_on_next_save;
@@ -551,11 +584,15 @@ namespace NeonWhiteDebugMenu {
             instance.PatchAll(typeof(SetNoclipOnStart));
             instance.PatchAll(typeof(DebugLoggingPatches));
 
+            this.counter_text = new DemonCounterTextMod();
+            this.counter_text.OnApplicationLateStart();
+
             // set up prefs here
             debug_menu = MelonPreferences.CreateCategory("Debug Menu");
             noclip = debug_menu.CreateEntry("Noclip", false);
             hud = debug_menu.CreateEntry("HUD", true);
             timescale = debug_menu.CreateEntry("Timescale", 1f);
+            cards_by_input = debug_menu.CreateEntry("Keybinds for card testing", false);
 
             enemy_ai_debug = MelonPreferences.CreateCategory("Debug: Enemy AI");
             disable_barnacle = enemy_ai_debug.CreateEntry("Disable Barnacle (basic imp)", false);
@@ -598,6 +635,7 @@ namespace NeonWhiteDebugMenu {
 
         public override void OnGUI() {
             DrawText(0, 0, "Debug kit loaded; PBs disabled!", 12, Color.magenta);
+            this.counter_text.OnGUI();
         }
 
         public void AddCardBindings() {
@@ -605,70 +643,80 @@ namespace NeonWhiteDebugMenu {
             elevateAction.AddBinding("<Keyboard>/1", null, null, null);
             elevateAction.Enable();
             elevateAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("PISTOL");
+                if (cards_by_input.Value)
+                    GS.AddCard("PISTOL");
             };
 
             InputAction purifyAction = new InputAction();
             purifyAction.AddBinding("<Keyboard>/2", null, null, null);
             purifyAction.Enable();
             purifyAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("MACHINEGUN");
+                if (cards_by_input.Value)
+                    GS.AddCard("MACHINEGUN");
             };
 
             InputAction godspeedAction = new InputAction();
             godspeedAction.AddBinding("<Keyboard>/3", null, null, null);
             godspeedAction.Enable();
             godspeedAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("RIFLE");
+                if (cards_by_input.Value)
+                    GS.AddCard("RIFLE");
             };
 
             InputAction stompAction = new InputAction();
             stompAction.AddBinding("<Keyboard>/4", null, null, null);
             stompAction.Enable();
             stompAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("UZI");
+                if (cards_by_input.Value)
+                    GS.AddCard("UZI");
             };
 
             InputAction fireballAction = new InputAction();
             fireballAction.AddBinding("<Keyboard>/5", null, null, null);
             fireballAction.Enable();
             fireballAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("SHOTGUN");
+                if (cards_by_input.Value)
+                    GS.AddCard("SHOTGUN");
             };
 
             InputAction dominionAction = new InputAction();
             dominionAction.AddBinding("<Keyboard>/6", null, null, null);
             dominionAction.Enable();
             dominionAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("ROCKETLAUNCHER");
+                if (cards_by_input.Value)
+                    GS.AddCard("ROCKETLAUNCHER");
             };
 
             InputAction boofAction = new InputAction();
             boofAction.AddBinding("<Keyboard>/7", null, null, null);
             boofAction.Enable();
             boofAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("RAPTURE");
+                if (cards_by_input.Value)
+                    GS.AddCard("RAPTURE");
             };
 
             InputAction miracleAction = new InputAction();
             miracleAction.AddBinding("<Keyboard>/8", null, null, null);
             miracleAction.Enable();
             miracleAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("KATANA_MIRACLE");
+                if (cards_by_input.Value)
+                    GS.AddCard("KATANA_MIRACLE");
             };
 
             InputAction revolverAction = new InputAction();
             revolverAction.AddBinding("<Keyboard>/9", null, null, null);
             revolverAction.Enable();
             revolverAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("REVOLVER");
+                if (cards_by_input.Value)
+                    GS.AddCard("REVOLVER");
             };
 
             InputAction resurrectAction = new InputAction();
             resurrectAction.AddBinding("<Keyboard>/0", null, null, null);
             resurrectAction.Enable();
             resurrectAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("RESURRECT");
+                if (cards_by_input.Value)
+                    GS.AddCard("RESURRECT");
             };
 
 
@@ -676,35 +724,40 @@ namespace NeonWhiteDebugMenu {
             grenadeAction.AddBinding("<Keyboard>/g", null, null, null);
             grenadeAction.Enable();
             grenadeAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("GRENADE");
+                if (cards_by_input.Value)
+                    GS.AddCard("GRENADE");
             };
 
             InputAction wingsAction = new InputAction();
             wingsAction.AddBinding("<Keyboard>/backspace", null, null, null);
             wingsAction.Enable();
             wingsAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("WINGS");
+                if (cards_by_input.Value)
+                    GS.AddCard("WINGS");
             };
 
             InputAction whipAction = new InputAction();
             whipAction.AddBinding("<Keyboard>/b", null, null, null);
             whipAction.Enable();
             whipAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("WHIP");
+                if (cards_by_input.Value)
+                    GS.AddCard("WHIP");
             };
 
             InputAction assaultAction = new InputAction();
             assaultAction.AddBinding("<Keyboard>/u", null, null, null);
             assaultAction.Enable();
             assaultAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("ASSAULTRIFLE");
+                if (cards_by_input.Value)
+                    GS.AddCard("ASSAULTRIFLE");
             };
 
             InputAction knifeAction = new InputAction();
             knifeAction.AddBinding("<Keyboard>/z", null, null, null);
             knifeAction.Enable();
             knifeAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("KNIFE");
+                if (cards_by_input.Value)
+                    GS.AddCard("KNIFE");
             };
 
 
@@ -712,49 +765,56 @@ namespace NeonWhiteDebugMenu {
             lanceAction.AddBinding("<Keyboard>/l", null, null, null);
             lanceAction.Enable();
             lanceAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("LANCE");
+                if (cards_by_input.Value)
+                    GS.AddCard("LANCE");
             };
 
             InputAction maceAction = new InputAction();
             maceAction.AddBinding("<Keyboard>/m", null, null, null);
             maceAction.Enable();
             maceAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("MACE");
+                if (cards_by_input.Value)
+                    GS.AddCard("MACE");
             };
 
             InputAction throwingKnifeAction = new InputAction();
             throwingKnifeAction.AddBinding("<Keyboard>/t", null, null, null);
             throwingKnifeAction.Enable();
             throwingKnifeAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("THROWING_KNIFE");
+                if (cards_by_input.Value)
+                    GS.AddCard("THROWING_KNIFE");
             };
 
             InputAction curseAction = new InputAction();
             curseAction.AddBinding("<Keyboard>/h", null, null, null);
             curseAction.Enable();
             curseAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("CURSE");
+                if (cards_by_input.Value)
+                    GS.AddCard("CURSE");
             };
 
             InputAction silencerAction = new InputAction();
             silencerAction.AddBinding("<Keyboard>/j", null, null, null);
             silencerAction.Enable();
             silencerAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("PISTOL_SILENCER");
+                if (cards_by_input.Value)
+                    GS.AddCard("PISTOL_SILENCER");
             };
 
             InputAction shieldAction = new InputAction();
             shieldAction.AddBinding("<Keyboard>/n", null, null, null);
             shieldAction.Enable();
             shieldAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("SHIELD");
+                if (cards_by_input.Value)
+                    GS.AddCard("SHIELD");
             };
 
             InputAction tempAction = new InputAction();
             tempAction.AddBinding("<Keyboard>/z", null, null, null);
             tempAction.Enable();
             tempAction.performed += delegate (InputAction.CallbackContext obj) {
-                GS.AddCard("TEMPLATE");
+                if (cards_by_input.Value)
+                    GS.AddCard("TEMPLATE");
             };
         }
     }
